@@ -1,0 +1,21 @@
+{
+  "name": "eventmesh-client",
+  "version": "1.0.0",
+  "private": true,
+  "description": "EventMesh ticketing and gate client terminals",
+  "scripts": {
+    "start": "react-scripts start",
+    "start:ticketing": "REACT_APP_NODE_ROLE=LAPTOP_2_TICKETING react-scripts start",
+    "start:gate": "REACT_APP_NODE_ROLE=LAPTOP_3_GATE_ANALYTICS react-scripts start",
+    "build": "react-scripts build"
+  },
+  "browserslist": {
+    "production": [">0.2%", "not dead", "not op_mini all"],
+    "development": ["last 1 chrome version", "last 1 firefox version", "last 1 safari version"]
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-scripts": "5.0.1"
+  }
+}

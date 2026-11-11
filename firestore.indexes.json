@@ -1,0 +1,13 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "seats",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "lock_expiration", "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

@@ -1,0 +1,8 @@
+node_modules/
+**/node_modules/
+server/.env
+client/.env
+**/*service-account*.json
+**/*firebase-adminsdk*.json
+client/build/
+npm-debug.log*
