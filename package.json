@@ -1,0 +1,11 @@
+{
+  "name": "eventmesh",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start:all": "concurrently --names \"SERVER,TICKETING,VALIDATOR,ATTENDEE\" --prefix-colors \"blue,green,magenta,cyan\" \"npm --prefix laptop1-server start\" \"npm --prefix laptop2-ticketing start\" \"npm --prefix laptop3-attendee start\" \"npm --prefix laptop4-attendee start\""
+  },
+  "dependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

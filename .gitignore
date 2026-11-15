@@ -2,7 +2,9 @@ node_modules/
 **/node_modules/
 server/.env
 client/.env
-**/*service-account*.json
-**/*firebase-adminsdk*.json
+**/.env
+!**/.env.example
 client/build/
+laptop1-server/.env
+laptop1-server/data/
 npm-debug.log*

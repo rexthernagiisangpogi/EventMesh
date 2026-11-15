@@ -1,0 +1,20 @@
+0 verbose cli /usr/local/bin/node /usr/local/bin/npm
+1 info using npm@10.9.3
+2 info using node@v22.19.0
+3 silly config load:file:/usr/local/lib/node_modules/npm/npmrc
+4 silly config load:file:/Users/nilysinangote/Documents/EventMesh/laptop1-server/.npmrc
+5 silly config load:file:/Users/nilysinangote/.npmrc
+6 silly config load:file:/usr/local/etc/npmrc
+7 verbose title npm ls
+8 verbose argv "ls" "--depth" "0"
+9 verbose logfile logs-max:10 dir:/Users/nilysinangote/Documents/EventMesh/laptop1-server/.npm-cache/_logs/2026-11-12T07_33_21_023Z-
+10 verbose logfile /Users/nilysinangote/Documents/EventMesh/laptop1-server/.npm-cache/_logs/2026-11-12T07_33_21_023Z-debug-0.log
+11 silly logfile start cleaning logs, removing 1 files
+12 silly packumentCache heap:2197815296 maxSize:549453824 maxEntrySize:274726912
+13 silly logfile done cleaning log files
+14 verbose cwd /Users/nilysinangote/Documents/EventMesh/laptop1-server
+15 verbose os Darwin 24.6.0
+16 verbose node v22.19.0
+17 verbose npm  v10.9.3
+18 verbose exit 0
+19 info ok
