@@ -4,6 +4,89 @@ import { invokeRpc } from '../config/api';
 
 const NODE_ID = 'NODE_LAPTOP4';
 
+async function buildTicketCanvas(ticketEl, qrCanvasEl) {
+  const W = 800, H = 300;
+  const SPLIT = 530;
+  const c = document.createElement('canvas');
+  c.width = W * 2; c.height = H * 2;
+  const ctx = c.getContext('2d');
+  ctx.scale(2, 2);
+
+  // background: poster or gradient
+  const posterImg = ticketEl.querySelector('img[data-ticket-poster]');
+  ctx.save();
+  ctx.roundRect(0, 0, W, H, 18); ctx.clip();
+  if (posterImg && posterImg.complete) {
+    ctx.drawImage(posterImg, 0, 0, W, H);
+  } else {
+    const bg = ctx.createLinearGradient(0, 0, W, H);
+    bg.addColorStop(0, '#0f2236'); bg.addColorStop(1, '#1a4a5a');
+    ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+  }
+  ctx.fillStyle = 'rgba(8,20,36,0.72)'; ctx.fillRect(0, 0, W, H);
+  ctx.restore();
+
+  // top accent bar
+  const stripe = ctx.createLinearGradient(0, 0, W, 0);
+  stripe.addColorStop(0, '#38bdf8'); stripe.addColorStop(1, '#34d399');
+  ctx.fillStyle = stripe; ctx.fillRect(0, 0, W, 4);
+
+  // event name (word-wrap)
+  ctx.fillStyle = '#fff'; ctx.font = 'bold 24px system-ui, sans-serif';
+  ctx.shadowColor = 'rgba(0,0,0,0.8)'; ctx.shadowBlur = 10;
+  const evName = ticketEl.dataset.eventName || '';
+  const maxW = SPLIT - 48;
+  let words = evName.split(' '), line = '', nameY = 68;
+  for (const w of words) {
+    const test = line ? line + ' ' + w : w;
+    if (ctx.measureText(test).width > maxW && line) {
+      ctx.fillText(line, 24, nameY); line = w; nameY += 30;
+    } else { line = test; }
+  }
+  ctx.fillText(line, 24, nameY);
+  ctx.shadowBlur = 0;
+
+  // divider
+  ctx.strokeStyle = 'rgba(255,255,255,0.15)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(24, nameY + 14); ctx.lineTo(SPLIT - 24, nameY + 14); ctx.stroke();
+
+  // detail rows
+  const rows = JSON.parse(ticketEl.dataset.rows || '[]');
+  let dy = nameY + 32;
+  for (const [label, value] of rows) {
+    ctx.font = '9px system-ui, sans-serif'; ctx.fillStyle = '#7fb8d4';
+    ctx.fillText(label.toUpperCase(), 24, dy);
+    ctx.font = 'bold 13px system-ui, sans-serif'; ctx.fillStyle = '#e8f4fb';
+    ctx.fillText(value, 24, dy + 15, maxW); dy += 36;
+  }
+
+  // ticket id
+  ctx.font = '8px monospace'; ctx.fillStyle = 'rgba(255,255,255,0.22)';
+  ctx.fillText(ticketEl.dataset.ticketId || '', 24, H - 12, SPLIT - 48);
+
+  // vertical tear line
+  ctx.strokeStyle = 'rgba(255,255,255,0.2)'; ctx.lineWidth = 1;
+  ctx.setLineDash([6, 5]);
+  ctx.beginPath(); ctx.moveTo(SPLIT, 14); ctx.lineTo(SPLIT, H - 14); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = 'rgba(8,20,36,0.9)';
+  ctx.beginPath(); ctx.arc(SPLIT, 0, 12, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(SPLIT, H, 12, 0, Math.PI * 2); ctx.fill();
+
+  // QR code
+  const qrSize = 160;
+  const qrX = SPLIT + (W - SPLIT - qrSize) / 2;
+  const qrY = (H - qrSize) / 2 - 12;
+  ctx.fillStyle = '#fff'; ctx.roundRect(qrX - 8, qrY - 8, qrSize + 16, qrSize + 16, 10); ctx.fill();
+  ctx.drawImage(qrCanvasEl, qrX, qrY, qrSize, qrSize);
+  ctx.font = '9px system-ui, sans-serif'; ctx.fillStyle = '#7fb8d4';
+  ctx.textAlign = 'center';
+  ctx.fillText('Scan at the gate · Keep this ticket private', SPLIT + (W - SPLIT) / 2, qrY + qrSize + 24);
+  ctx.textAlign = 'left';
+
+  return c;
+}
+
 function getSeatLabel(seat) {
   return seat.seat_label || `S${seat.seat_number}`;
 }
@@ -16,17 +99,24 @@ export default function AttendeePortal({ events, seats, onRefresh }) {
   const [status, setStatus] = useState(null);
   const [busy, setBusy] = useState(false);
   const qrRef = useRef(null);
+  const ticketCardRef = useRef(null);
 
-  const downloadTicket = () => {
-    const canvas = qrRef.current?.querySelector('canvas');
-    if (!canvas) {
-      setStatus({ ok: false, message: 'Unable to prepare the ticket QR code for download.' });
+  const downloadTicket = async () => {
+    const qrCanvas = qrRef.current?.querySelector('canvas');
+    const ticketEl = ticketCardRef.current;
+    if (!qrCanvas || !ticketEl) {
+      setStatus({ ok: false, message: 'Unable to prepare the ticket for download.' });
       return;
     }
-    const link = document.createElement('a');
-    link.download = `eventmesh-ticket-${ticket.ticket_id}.png`;
-    link.href = canvas.toDataURL('image/png');
-    link.click();
+    try {
+      const canvas = await buildTicketCanvas(ticketEl, qrCanvas);
+      const link = document.createElement('a');
+      link.download = `eventmesh-ticket-${ticket.ticket_id}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    } catch (err) {
+      setStatus({ ok: false, message: 'Download failed: ' + err.message });
+    }
   };
 
   const set = (f) => (e) => setForm((p) => ({ ...p, [f]: e.target.value }));
@@ -167,45 +257,82 @@ export default function AttendeePortal({ events, seats, onRefresh }) {
 
   // ── Ticket confirmation ─────────────────────────────────────────────────────
   if (ticket) {
+    const detailRows = [
+      ['Name', ticket.attendee_name],
+      ['Event', selectedEvent.name],
+      ['Seat', ticket.seat_label],
+      ...(selectedEvent.date ? [['Date', selectedEvent.date]] : []),
+      ...(selectedEvent.venue ? [['Venue', selectedEvent.venue]] : []),
+    ];
     return (
-      <div style={pageCardStyle}>
-        <div style={successCircleStyle}>✓</div>
-        <h2 style={{ color: '#64500f', textAlign: 'center', margin: '0 0 6px' }}>Booking Confirmed!</h2>
-        <p style={{ ...mutedStyle, textAlign: 'center', marginBottom: 24 }}>
-        Download this QR ticket and present it at the gate for validation.
-        </p>
-        <div style={ticketBoxStyle}>
-          <div style={ticketRowStyle}>
-            <span style={ticketLabelStyle}>Name</span>
-            <span style={ticketValueStyle}>{ticket.attendee_name}</span>
-          </div>
-          <div style={ticketRowStyle}>
-            <span style={ticketLabelStyle}>Event</span>
-            <span style={ticketValueStyle}>{selectedEvent.name}</span>
-          </div>
-          <div style={ticketRowStyle}>
-            <span style={ticketLabelStyle}>Seat</span>
-            <span style={ticketValueStyle}>{ticket.seat_label}</span>
-          </div>
-          {selectedEvent.date && (
-            <div style={ticketRowStyle}>
-              <span style={ticketLabelStyle}>Date</span>
-              <span style={ticketValueStyle}>{selectedEvent.date}</span>
-            </div>
-          )}
-          <div style={qrTicketStyle}>
-            <div ref={qrRef} style={qrCanvasStyle}>
-              <QRCodeCanvas value={ticket.qr_hash} size={240} level="H" includeMargin />
-            </div>
-            <button type="button" onClick={downloadTicket} style={btnStyle}>
-              Download QR Ticket
-            </button>
-            <div style={{ ...ticketLabelStyle, marginTop: 10 }}>Keep this QR code private; it is your signed event ticket.</div>
+      <div style={{ maxWidth: 760, margin: '0 auto' }}>
+        <div style={successBannerStyle}>
+          <span style={successIconStyle}>✓</span>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: 17, color: '#0f4c3a' }}>Booking Confirmed!</div>
+            <div style={{ fontSize: 13, color: '#2d6a5a', marginTop: 2 }}>Download your digital ticket and present it at the gate.</div>
           </div>
         </div>
-        <button type="button" onClick={goBack} style={{ ...btnStyle, width: '100%', marginTop: 16, background: 'linear-gradient(110deg, #332b10, #554515)' }}>
-          ← Back to Events
-        </button>
+
+        {/* ── Digital Ticket Card (landscape) ── */}
+        <div
+          ref={ticketCardRef}
+          data-event-name={selectedEvent.name}
+          data-ticket-id={ticket.ticket_id}
+          data-rows={JSON.stringify(detailRows)}
+          style={digitalTicketStyle}
+        >
+          {/* Poster as full background */}
+          {selectedEvent.image && (
+            <img data-ticket-poster="1" src={selectedEvent.image} alt="" style={ticketBgImgStyle} />
+          )}
+          <div style={ticketBgOverlayStyle} />
+
+          {/* Top accent bar */}
+          <div style={ticketAccentBarStyle} />
+
+          {/* Landscape body: left info | tear line | right QR */}
+          <div style={ticketLandscapeBodyStyle}>
+            {/* Left panel */}
+            <div style={ticketLeftPanelStyle}>
+              <div style={ticketEventNameStyle}>{selectedEvent.name}</div>
+              <div style={ticketDetailsDividerStyle} />
+              {detailRows.map(([label, value]) => (
+                <div key={label} style={ticketDetailItemStyle}>
+                  <div style={ticketDetailLabelStyle}>{label}</div>
+                  <div style={ticketDetailValueStyle}>{value}</div>
+                </div>
+              ))}
+              <div style={ticketIdStyle}>{ticket.ticket_id}</div>
+            </div>
+
+            {/* Vertical tear line */}
+            <div style={vTearLineWrapStyle}>
+              <div style={vTearCircleTopStyle} />
+              <div style={vTearLineDashStyle} />
+              <div style={vTearCircleBottomStyle} />
+            </div>
+
+            {/* Right panel: QR */}
+            <div style={ticketRightPanelStyle}>
+              <div ref={qrRef} style={ticketQrBoxStyle}>
+                <QRCodeCanvas value={ticket.qr_hash} size={150} level="H" includeMargin />
+              </div>
+              <div style={ticketQrHintStyle}>Scan at the gate</div>
+              <div style={ticketQrHintStyle}>Keep this ticket private</div>
+            </div>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
+          <button type="button" onClick={downloadTicket} style={{ ...btnStyle, flex: 1 }}>
+            ⬇ Download Ticket
+          </button>
+          <button type="button" onClick={goBack} style={{ ...btnStyle, flex: 1, background: 'linear-gradient(110deg, #1e3a52, #1a5c5a)' }}>
+            ← Back to Events
+          </button>
+        </div>
+        {status && !status.ok && <p style={{ color: '#991b1b', fontSize: 13, marginTop: 8 }}>{status.message}</p>}
       </div>
     );
   }
@@ -318,10 +445,25 @@ const seatBtnStyle = { padding: '8px 4px', color: '#fff', border: 0, borderRadiu
 const selectedSeatBannerStyle = { marginTop: 12, padding: '8px 12px', background: '#dff4ef', color: '#176c68', borderRadius: 6, fontWeight: 600, fontSize: 13 };
 const inputStyle = { display: 'block', width: '100%', padding: 11, marginBottom: 10, boxSizing: 'border-box', borderRadius: 6, border: '1px solid #bfd4e1', fontSize: 14, background: '#fbfdff', color: '#20334a' };
 const btnStyle = { padding: '12px 20px', background: 'linear-gradient(110deg, #3474b5, #258f9a)', color: '#fff', border: 0, borderRadius: 6, cursor: 'pointer', fontWeight: 700, fontSize: 14 };
-const successCircleStyle = { width: 64, height: 64, background: '#dff4ef', color: '#17736d', borderRadius: '50%', fontSize: 32, lineHeight: '64px', margin: '0 auto 16px', fontWeight: 700, textAlign: 'center' };
-const ticketBoxStyle = { background: '#eef7fa', border: '1px solid #c7dce8', borderRadius: 8, padding: 20 };
-const ticketRowStyle = { display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid #d5e5ea' };
-const ticketLabelStyle = { fontSize: 12, color: '#71869a', fontWeight: 600 };
-const ticketValueStyle = { fontSize: 13, color: '#20334a', fontWeight: 600 };
-const qrTicketStyle = { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, marginTop: 20, padding: 20, border: '1px solid #c7dce8', borderRadius: 12, background: '#fff', textAlign: 'center' };
-const qrCanvasStyle = { padding: 10, background: '#fff', borderRadius: 8 };
+const successBannerStyle = { display: 'flex', alignItems: 'center', gap: 14, padding: '14px 18px', background: 'linear-gradient(110deg, #d1fae5, #ccfbf1)', border: '1px solid #6ee7b7', borderRadius: 12, marginBottom: 18 };
+const successIconStyle = { width: 44, height: 44, background: '#10b981', color: '#fff', borderRadius: '50%', fontSize: 22, lineHeight: '44px', textAlign: 'center', fontWeight: 700, flexShrink: 0 };
+const digitalTicketStyle = { position: 'relative', borderRadius: 18, overflow: 'hidden', boxShadow: '0 24px 60px rgba(10,28,50,0.6), 0 0 0 1px rgba(255,255,255,0.07)', color: '#fff', background: 'linear-gradient(135deg, #0f2236, #1a4a5a)' };
+const ticketBgImgStyle = { position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', display: 'block', zIndex: 0 };
+const ticketBgOverlayStyle = { position: 'absolute', inset: 0, background: 'rgba(8,20,36,0.72)', zIndex: 1 };
+const ticketAccentBarStyle = { position: 'relative', zIndex: 2, height: 4, background: 'linear-gradient(90deg, #38bdf8, #34d399)' };
+const ticketLandscapeBodyStyle = { position: 'relative', zIndex: 2, display: 'flex', alignItems: 'stretch', minHeight: 220 };
+const ticketLeftPanelStyle = { flex: '1 1 0', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 };
+const admitBadgeStyle = { display: 'inline-block', alignSelf: 'flex-start', padding: '3px 10px', background: 'rgba(56,189,248,0.22)', border: '1px solid rgba(56,189,248,0.5)', borderRadius: 20, fontSize: 10, fontWeight: 800, letterSpacing: '1.5px', color: '#7dd3fc' };
+const ticketEventNameStyle = { fontSize: 'clamp(16px, 3vw, 22px)', fontWeight: 800, letterSpacing: '-0.3px', textShadow: '0 2px 8px rgba(0,0,0,0.7)', lineHeight: 1.2, margin: '2px 0 4px' };
+const ticketDetailsDividerStyle = { height: 1, background: 'rgba(255,255,255,0.15)', margin: '2px 0 4px' };
+const ticketDetailItemStyle = { display: 'flex', flexDirection: 'column', gap: 1 };
+const ticketDetailLabelStyle = { fontSize: 9, color: '#7fb8d4', fontWeight: 700, letterSpacing: '1px', textTransform: 'uppercase' };
+const ticketDetailValueStyle = { fontSize: 14, fontWeight: 700, color: '#e8f4fb' };
+const ticketIdStyle = { marginTop: 'auto', fontSize: 8, color: 'rgba(255,255,255,0.22)', fontFamily: 'monospace', wordBreak: 'break-all' };
+const vTearLineWrapStyle = { display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 };
+const vTearCircleTopStyle = { width: 18, height: 18, borderRadius: '50%', background: 'rgba(8,20,36,0.9)', flexShrink: 0, marginTop: -9 };
+const vTearLineDashStyle = { flex: 1, borderLeft: '2px dashed rgba(255,255,255,0.2)', margin: '4px 0' };
+const vTearCircleBottomStyle = { width: 18, height: 18, borderRadius: '50%', background: 'rgba(8,20,36,0.9)', flexShrink: 0, marginBottom: -9 };
+const ticketRightPanelStyle = { flexShrink: 0, width: 'clamp(160px, 28%, 200px)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '20px' };
+const ticketQrBoxStyle = { background: '#fff', padding: 8, borderRadius: 10, boxShadow: '0 4px 20px rgba(0,0,0,0.4)' };
+const ticketQrHintStyle = { fontSize: 10, color: '#7fb8d4', textAlign: 'center', lineHeight: 1.4 };

@@ -95,6 +95,25 @@ app.post('/api/v1/sync/batch', async (req, res) => {
   res.status(409).json(result);
 });
 
+// ── Serve built client apps ──────────────────────────────────────────────────
+const path = require('path');
+const clientApps = [
+  { port: 3002, dir: '../laptop2-ticketing/build' },
+  { port: 3003, dir: '../laptop3-attendee/build' },
+  { port: 3004, dir: '../laptop4-attendee/build' },
+];
+clientApps.forEach(({ port: clientPort, dir }) => {
+  const buildPath = path.join(__dirname, dir);
+  if (require('fs').existsSync(buildPath)) {
+    const clientApp = express();
+    clientApp.use(express.static(buildPath));
+    clientApp.get('*', (_req, res) => res.sendFile(path.join(buildPath, 'index.html')));
+    clientApp.listen(clientPort, '0.0.0.0', () =>
+      console.log(`Client app served on port ${clientPort}`)
+    );
+  }
+});
+
 const server = http.createServer(app);
 initWebSocketHub(server);
 startLockReaper();

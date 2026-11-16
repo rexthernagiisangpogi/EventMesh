@@ -3,7 +3,9 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "start:all": "concurrently --names \"SERVER,TICKETING,VALIDATOR,ATTENDEE\" --prefix-colors \"blue,green,magenta,cyan\" \"npm --prefix laptop1-server start\" \"npm --prefix laptop2-ticketing start\" \"npm --prefix laptop3-attendee start\" \"npm --prefix laptop4-attendee start\""
+    "start:all": "concurrently --names \"SERVER,TICKETING,VALIDATOR,ATTENDEE\" --prefix-colors \"blue,green,magenta,cyan\" \"npm --prefix laptop1-server start\" \"npm --prefix laptop2-ticketing start\" \"npm --prefix laptop3-attendee start\" \"npm --prefix laptop4-attendee start\"",
+    "build:clients": "npm --prefix laptop2-ticketing run build && npm --prefix laptop3-attendee run build && npm --prefix laptop4-attendee run build",
+    "serve": "npm --prefix laptop1-server start"
   },
   "dependencies": {
     "concurrently": "^8.2.2"

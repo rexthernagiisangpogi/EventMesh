@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { Html5Qrcode } from 'html5-qrcode';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import jsQR from 'jsqr';
 import { API_BASE_URL, invokeRpc } from '../config/api';
 
 const TERMINAL_ID = 'GATE_TERM_01_LAPTOP3';
@@ -16,6 +16,16 @@ export default function GateScanner({ tickets, onRefresh }) {
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scannerActive, setScannerActive] = useState(false);
   const [scannerError, setScannerError] = useState('');
+
+  const [debugInfo, setDebugInfo] = useState('');
+
+  useEffect(() => {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setDebugInfo('getUserMedia not supported on this browser/connection.');
+    } else {
+      setDebugInfo('getUserMedia available.');
+    }
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -63,59 +73,72 @@ export default function GateScanner({ tickets, onRefresh }) {
     }
   }, [isOnline, onRefresh, qrInput]);
 
+  const videoRef = useRef(null);
+
   useEffect(() => {
     if (!scannerOpen) return undefined;
 
     let active = true;
-    let disposed = false;
-    let started = false;
-    const scanner = new Html5Qrcode('ticket-qr-reader');
+    let stream = null;
+    let rafId = null;
 
-    const startScanner = async () => {
-      try {
-        await scanner.start(
-          { facingMode: 'environment' },
-          { fps: 10, qrbox: { width: 240, height: 240 } },
-          (decodedText) => {
-            if (!active) return;
-            active = false;
-            setScannerOpen(false);
-            setScannerError('');
-            setQrInput(decodedText);
-            validate(null, decodedText);
-          },
-        );
-        started = true;
-        if (disposed) {
-          if (scanner.isScanning) await scanner.stop();
-          scanner.clear();
+    const tick = (video, canvas, ctx) => {
+      if (!active) return;
+      if (video.readyState === video.HAVE_ENOUGH_DATA) {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        ctx.drawImage(video, 0, 0);
+        const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const code = jsQR(img.data, img.width, img.height, { inversionAttempts: 'dontInvert' });
+        if (code?.data) {
+          active = false;
+          setScannerOpen(false);
+          setScannerError('');
+          setQrInput(code.data);
+          validate(null, code.data);
           return;
         }
+      }
+      rafId = requestAnimationFrame(() => tick(video, canvas, ctx));
+    };
+
+    const start = async () => {
+      try {
+        setDebugInfo('Requesting camera...');
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: 'environment' } },
+          audio: false,
+        });
+        setDebugInfo('Stream obtained, attaching to video...');
+        if (!active) { stream.getTracks().forEach(t => t.stop()); return; }
+        const video = videoRef.current;
+        if (!video) { setDebugInfo('ERROR: video element not found'); return; }
+        video.srcObject = stream;
+        await video.play();
+        setDebugInfo('Video playing, scanning...');
         setScannerActive(true);
-      } catch (error) {
-        if (active) {
-          setScannerError(error.message || 'Unable to start the camera scanner.');
-          setScannerOpen(false);
-        }
-        try {
-          if (scanner.isScanning) await scanner.stop();
-          scanner.clear();
-        } catch (cleanupError) {
-          if (active) setScannerError(cleanupError.message || 'Unable to release the camera scanner.');
-        }
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        rafId = requestAnimationFrame(() => tick(video, canvas, ctx));
+      } catch (err) {
+        if (!active) return;
+        setDebugInfo(`ERROR ${err?.name}: ${err?.message}`);
+        const msg = err?.name === 'NotAllowedError'
+          ? 'Camera permission denied. Tap the camera icon in the address bar and allow access.'
+          : err?.name === 'NotFoundError'
+          ? 'No camera found on this device.'
+          : `${err?.name}: ${err?.message}`;
+        setScannerError(msg);
+        setScannerOpen(false);
       }
     };
 
-    startScanner();
+    start();
     return () => {
       active = false;
-      disposed = true;
       setScannerActive(false);
-      if (started && scanner.isScanning) {
-        scanner.stop()
-          .then(() => scanner.clear())
-          .catch((error) => setScannerError(error.message || 'Unable to stop the camera scanner.'));
-      }
+      if (rafId) cancelAnimationFrame(rafId);
+      if (stream) stream.getTracks().forEach(t => t.stop());
     };
   }, [scannerOpen, validate]);
 
@@ -221,9 +244,15 @@ export default function GateScanner({ tickets, onRefresh }) {
           {scannerOpen ? scannerActive ? 'Close QR scanner' : 'Starting camera…' : 'Scan QR ticket'}
         </button>
         {scannerOpen && (
-          <div id="ticket-qr-reader" style={scannerContainerStyle} />
+          <video
+            ref={videoRef}
+            playsInline
+            muted
+            style={scannerContainerStyle}
+          />
         )}
         {scannerError && <p role="alert" style={scannerErrorStyle}>{scannerError}</p>}
+        <p style={{ fontSize: 11, color: '#64748b', marginTop: 6, wordBreak: 'break-all' }}>Debug: {debugInfo}</p>
 
         {scanResult && (
           <div style={{ ...resultStyle, background: scanResult.success ? '#dcfce7' : '#fee2e2', borderColor: scanResult.success ? '#86efac' : '#fca5a5' }}>

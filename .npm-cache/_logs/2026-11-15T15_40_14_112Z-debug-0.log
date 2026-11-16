@@ -7,7 +7,7 @@
 6 silly config load:file:/usr/local/etc/npmrc
 7 verbose title npm start
 8 verbose argv "--prefix" "laptop1-server" "start"
-9 verbose logfile logs-max:10 dir:/Users/nilysinangote/Documents/EventMesh/.npm-cache/_logs/2026-11-13T05_30_24_935Z-
-10 verbose logfile /Users/nilysinangote/Documents/EventMesh/.npm-cache/_logs/2026-11-13T05_30_24_935Z-debug-0.log
-11 silly logfile start cleaning logs, removing 3 files
+9 verbose logfile logs-max:10 dir:/Users/nilysinangote/Documents/EventMesh/.npm-cache/_logs/2026-11-15T15_40_14_112Z-
+10 verbose logfile /Users/nilysinangote/Documents/EventMesh/.npm-cache/_logs/2026-11-15T15_40_14_112Z-debug-0.log
+11 silly logfile start cleaning logs, removing 1 files
 12 silly logfile done cleaning log files

@@ -2,14 +2,14 @@
 1 info using npm@10.9.3
 2 info using node@v22.19.0
 3 silly config load:file:/usr/local/lib/node_modules/npm/npmrc
-4 silly config load:file:/Users/nilysinangote/Documents/EventMesh/laptop3-attendee/.npmrc
+4 silly config load:file:/Users/nilysinangote/Documents/EventMesh/laptop2-ticketing/.npmrc
 5 silly config load:file:/Users/nilysinangote/.npmrc
 6 silly config load:file:/usr/local/etc/npmrc
-7 verbose title npm start
-8 verbose argv "--prefix" "laptop3-attendee" "start"
-9 verbose logfile logs-max:10 dir:/Users/nilysinangote/Documents/EventMesh/.npm-cache/_logs/2026-11-13T01_48_17_789Z-
-10 verbose logfile /Users/nilysinangote/Documents/EventMesh/.npm-cache/_logs/2026-11-13T01_48_17_789Z-debug-0.log
-11 silly logfile start cleaning logs, removing 3 files
+7 verbose title npm run build
+8 verbose argv "--prefix" "laptop2-ticketing" "run" "build"
+9 verbose logfile logs-max:10 dir:/Users/nilysinangote/Documents/EventMesh/.npm-cache/_logs/2026-11-16T03_15_20_602Z-
+10 verbose logfile /Users/nilysinangote/Documents/EventMesh/.npm-cache/_logs/2026-11-16T03_15_20_602Z-debug-0.log
+11 silly logfile start cleaning logs, removing 1 files
 12 silly logfile done cleaning log files
 13 verbose cwd /Users/nilysinangote/Documents/EventMesh
 14 verbose os Darwin 24.6.0
