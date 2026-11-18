@@ -252,7 +252,7 @@ export default function AttendeePortal({ events, seats, onRefresh }) {
                 <div style={posterContainerStyle}>
                   {ev.image
                     ? <img src={ev.image} alt={`Poster for ${ev.name}`} style={posterStyle} />
-                    : <span style={posterPlaceholderStyle}>Event poster</span>}
+                    : <span style={posterPlaceholderStyle}>No poster</span>}
                 </div>
                 <div style={eventSquareInnerStyle}>
                   <div style={eventNameStyle}>{ev.name}</div>
