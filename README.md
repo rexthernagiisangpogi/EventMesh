@@ -54,16 +54,6 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 Keep the same secret while using this database; changing it makes already
 issued QR signatures fail validation. Do not share the server `.env`.
 
-Set `STAFF_PASSWORD` to a strong password shared only with the Laptop 2 and
-Laptop 3 operators. Generate one with:
-
-```sh
-node -e "console.log(require('crypto').randomBytes(24).toString('base64url'))"
-```
-
-Laptop 2 and Laptop 3 require this password to manage events and validate
-tickets. Attendees can book without a staff login.
-
 Find Laptop 1's IPv4 address:
 
 - **Windows:** run `ipconfig` and use the IPv4 address for the Wi-Fi adapter.
@@ -208,30 +198,3 @@ distributing the roles across separate devices.
 
 See [laptop1-server/LOCAL_STORAGE.md](./laptop1-server/LOCAL_STORAGE.md) for
 database backup and storage details.
-
-## Deploy for remote access (Render)
-
-The repository includes a Render Blueprint in `render.yaml`. It deploys the
-API, WebSocket service, and three client apps together, using a persistent disk
-for SQLite. Once deployed, the apps are available at:
-
-- `https://<service>.onrender.com/attendee/` — Laptop 4 attendee booking
-- `https://<service>.onrender.com/ticketing/` — Laptop 2 staff terminal
-- `https://<service>.onrender.com/validator/` — Laptop 3 gate validator
-
-To deploy:
-
-1. Push this repository to a private GitHub repository.
-2. In Render, create a new Blueprint and select that repository.
-3. Enter a strong `STAFF_PASSWORD` when prompted, then deploy. Render generates
-   the ticket-signing `HMAC_SECRET` and stores both values as service secrets.
-4. Open the three URLs above. Laptop 2 and Laptop 3 operators sign in with the
-   staff password; attendees can open the booking page without signing in.
-
-The hosted database starts empty; the local `laptop1-server/data/eventmesh.sqlite`
-is not uploaded automatically. If you migrate existing tickets, configure
-Render with the same `HMAC_SECRET` that signed them, or their QR signatures
-will no longer validate. The SQLite database contains attendee information;
-transfer it only through a private, secure process. Keep this as a single
-service instance because SQLite on the persistent disk is not a multi-instance
-database.

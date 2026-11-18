@@ -10,7 +10,6 @@ const WebSocket = require('ws');
 const { assignSeatLabels } = require('../utils/seatLabels');
 
 const serverDirectory = path.resolve(__dirname, '..');
-const staffTokens = new Map();
 
 async function getAvailablePort() {
   const listener = net.createServer();
@@ -32,8 +31,7 @@ function startServer(port, dataDirectory) {
       ...process.env,
       EVENTMESH_DATA_DIR: dataDirectory,
       HMAC_SECRET: 'local-storage-test-secret',
-      STAFF_PASSWORD: 'local-storage-test-password',
-      SERVE_CLIENTS_ON_MAIN_PORT: 'true',
+      NODE_ENV: 'test',
       PORT: String(port),
     },
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -67,37 +65,15 @@ async function stopServer(child) {
   await exited;
 }
 
-async function callRpc(port, method, params, staff = true) {
-  const headers = { 'Content-Type': 'application/json' };
-  if (staff) headers.Authorization = `Bearer ${await getStaffToken(port)}`;
+async function callRpc(port, method, params) {
   const response = await fetch(`http://127.0.0.1:${port}/api/v1/rpc`, {
     method: 'POST',
-    headers,
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ jsonrpc: '2.0', method, params, id: 1 }),
   });
   const payload = await response.json();
   assert.equal(response.status, 200, JSON.stringify(payload));
   return payload.result;
-}
-
-async function getStaffToken(port) {
-  if (staffTokens.has(port)) return staffTokens.get(port);
-  const response = await fetch(`http://127.0.0.1:${port}/api/v1/auth/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ password: 'local-storage-test-password' }),
-  });
-  const payload = await response.json();
-  assert.equal(response.status, 200, JSON.stringify(payload));
-  staffTokens.set(port, payload.token);
-  return payload.token;
-}
-
-async function fetchStaffState(port) {
-  const response = await fetch(`http://127.0.0.1:${port}/api/v1/state`, {
-    headers: { Authorization: `Bearer ${await getStaffToken(port)}` },
-  });
-  return response;
 }
 
 async function openWebSocket(port) {
@@ -138,36 +114,6 @@ test('local database supports event creation, ticketing, validation, and persist
   });
   await waitForServer(child, port);
 
-  for (const route of ['/ticketing', '/validator', '/attendee']) {
-    const appResponse = await fetch(`http://127.0.0.1:${port}${route}/`);
-    assert.equal(appResponse.status, 200);
-    const html = await appResponse.text();
-    const scriptPath = html.match(/src="([^"]+\.js)"/)?.[1];
-    assert.ok(scriptPath?.includes('/static/js/'), `${route} should include a JS bundle`);
-    const mountedScriptPath = scriptPath.startsWith(`${route}/`)
-      ? scriptPath
-      : `${route}${scriptPath}`;
-    const scriptResponse = await fetch(`http://127.0.0.1:${port}${mountedScriptPath}`);
-    assert.equal(scriptResponse.status, 200);
-  }
-
-  const privateStateResponse = await fetch(`http://127.0.0.1:${port}/api/v1/state`);
-  assert.equal(privateStateResponse.status, 401);
-  const privateCreateResponse = await fetch(`http://127.0.0.1:${port}/api/v1/rpc`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      jsonrpc: '2.0',
-      method: 'CreateEventProcedure',
-      params: { name: 'Unauthenticated event' },
-      id: 1,
-    }),
-  });
-  assert.equal(privateCreateResponse.status, 401);
-  const publicStateResponse = await fetch(`http://127.0.0.1:${port}/api/v1/public/state`);
-  assert.equal(publicStateResponse.status, 200);
-  assert.equal(Object.hasOwn(await publicStateResponse.json(), 'tickets'), false);
-
   const created = await callRpc(port, 'CreateEventProcedure', {
     name: 'Local storage test event',
     venue: 'Test venue',
@@ -182,7 +128,7 @@ test('local database supports event creation, ticketing, validation, and persist
   const events = await eventsResponse.json();
   assert.equal(events.events[0].event_id, created.event_id);
 
-  const stateResponse = await fetchStaffState(port);
+  const stateResponse = await fetch(`http://127.0.0.1:${port}/api/v1/state`);
   assert.equal(stateResponse.status, 200);
   const createdState = await stateResponse.json();
   assert.equal(createdState.seats.length, 4);
@@ -197,7 +143,7 @@ test('local database supports event creation, ticketing, validation, and persist
 
   const seatId = `${created.event_id}_S1`;
   const nodeId = 'NODE_LOCAL_TEST';
-  const lock = await callRpc(port, 'LockSeatProcedure', { seat_id: seatId, node_id: nodeId }, false);
+  const lock = await callRpc(port, 'LockSeatProcedure', { seat_id: seatId, node_id: nodeId });
   assert.equal(lock.success, true);
   const conflictingLock = await callRpc(port, 'LockSeatProcedure', {
     seat_id: seatId,
@@ -212,11 +158,11 @@ test('local database supports event creation, ticketing, validation, and persist
     attendee_address: '1 Test Street',
     attendee_phone: '555-0100',
     attendee_email: 'attendee@example.test',
-  }, false);
+  });
   assert.equal(booking.success, true);
   assert.equal(booking.ticket.seat_label, 'S1');
 
-  const bookedStateResponse = await fetchStaffState(port);
+  const bookedStateResponse = await fetch(`http://127.0.0.1:${port}/api/v1/state`);
   const bookedState = await bookedStateResponse.json();
   assert.equal(bookedState.tickets[0].event_id, created.event_id);
   assert.equal(bookedState.tickets[0].event_name, 'Local storage test event');
@@ -228,7 +174,7 @@ test('local database supports event creation, ticketing, validation, and persist
   });
   assert.equal(expandedSeats.success, true);
   assert.equal(expandedSeats.created_count, 5);
-  const expandedStateResponse = await fetchStaffState(port);
+  const expandedStateResponse = await fetch(`http://127.0.0.1:${port}/api/v1/state`);
   const expandedState = await expandedStateResponse.json();
   assert.equal(expandedState.seats.length, 9);
   assert.equal(expandedState.seats.find((seat) => seat.seat_id === seatId).status, 'BOOKED');
@@ -248,10 +194,8 @@ test('local database supports event creation, ticketing, validation, and persist
 
   const websocketState = await openWebSocket(port);
   assert.equal(websocketState.type, 'SYSTEM_STATE');
-  assert.equal(websocketState.state.seats.length, 9);
-  assert.equal(Object.hasOwn(websocketState.state, 'tickets'), false);
-  const validatedState = await fetchStaffState(port);
-  assert.equal((await validatedState.json()).tickets[0].is_validated, true);
+  assert.equal(websocketState.state.tickets[0].is_validated, true);
+  assert.equal(websocketState.state.tickets[0].event_name, 'Local storage test event');
 
   const updated = await callRpc(port, 'UpdateEventProcedure', {
     event_id: created.event_id,
@@ -264,7 +208,7 @@ test('local database supports event creation, ticketing, validation, and persist
   });
   assert.equal(updated.success, true);
   assert.equal(updated.created_count, 3);
-  const updatedStateResponse = await fetchStaffState(port);
+  const updatedStateResponse = await fetch(`http://127.0.0.1:${port}/api/v1/state`);
   const updatedState = await updatedStateResponse.json();
   assert.equal(updatedState.events[0].name, 'Updated local storage test event');
   assert.equal(updatedState.seats.length, 12);
@@ -275,14 +219,13 @@ test('local database supports event creation, ticketing, validation, and persist
     ticket_id: booking.ticket.ticket_id,
   });
   assert.equal(deletion.success, true);
-  const deletedStateResponse = await fetchStaffState(port);
+  const deletedStateResponse = await fetch(`http://127.0.0.1:${port}/api/v1/state`);
   const deletedState = await deletedStateResponse.json();
   assert.equal(deletedState.tickets.length, 0);
   assert.equal(deletedState.seats.find((seat) => seat.seat_id === seatId).status, 'AVAILABLE');
 
   await stopServer(child);
   port = await getAvailablePort();
-  staffTokens.delete(port);
   child = startServer(port, dataDirectory);
   await waitForServer(child, port);
 
@@ -302,7 +245,7 @@ test('local database supports event creation, ticketing, validation, and persist
   });
   assert.equal(legacySeatsCreated.success, true);
 
-  const legacyStateResponse = await fetchStaffState(port);
+  const legacyStateResponse = await fetch(`http://127.0.0.1:${port}/api/v1/state`);
   const legacyState = await legacyStateResponse.json();
   const legacySeats = legacyState.seats.filter((seat) => seat.event_id === legacyEvent.event_id);
   assert.deepEqual(legacySeats.map((seat) => seat.seat_label), [
@@ -322,7 +265,7 @@ test('local database supports event creation, ticketing, validation, and persist
   });
   assert.equal(legacyBooking.ticket.seat_label, 'S6');
 
-  const legacyTicketStateResponse = await fetchStaffState(port);
+  const legacyTicketStateResponse = await fetch(`http://127.0.0.1:${port}/api/v1/state`);
   const legacyTicketState = await legacyTicketStateResponse.json();
   assert.equal(
     legacyTicketState.tickets.find((ticket) => ticket.ticket_id === legacyBooking.ticket.ticket_id).seat_label,
