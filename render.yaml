@@ -1,0 +1,32 @@
+services:
+  - type: web
+    name: eventmesh
+    runtime: node
+    plan: starter
+    buildCommand: >-
+      npm ci --prefix laptop1-server &&
+      npm ci --prefix laptop2-ticketing &&
+      npm ci --prefix laptop3-attendee &&
+      npm ci --prefix laptop4-attendee &&
+      PUBLIC_URL=/ticketing REACT_APP_API_BASE_URL=/api/v1 npm --prefix laptop2-ticketing run build &&
+      PUBLIC_URL=/validator REACT_APP_API_BASE_URL=/api/v1 npm --prefix laptop3-attendee run build &&
+      PUBLIC_URL=/attendee REACT_APP_API_BASE_URL=/api/v1 npm --prefix laptop4-attendee run build
+    startCommand: npm --prefix laptop1-server start
+    healthCheckPath: /api/v1/health
+    disk:
+      name: eventmesh-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: EVENTMESH_DATA_DIR
+        value: /var/data
+      - key: SERVE_CLIENTS_ON_MAIN_PORT
+        value: "true"
+      - key: REACT_APP_API_BASE_URL
+        value: /api/v1
+      - key: HMAC_SECRET
+        generateValue: true
+      - key: STAFF_PASSWORD
+        sync: false

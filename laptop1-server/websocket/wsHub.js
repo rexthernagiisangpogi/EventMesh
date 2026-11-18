@@ -95,6 +95,22 @@ async function fetchSystemSnapshot(alert = null) {
   return snapshot;
 }
 
+async function fetchPublicSnapshot() {
+  const snapshot = await fetchSystemSnapshot();
+  return {
+    events: snapshot.events,
+    seats: snapshot.seats.map((seat) => ({
+      seat_id: seat.seat_id,
+      event_id: seat.event_id,
+      seat_label: seat.seat_label,
+      row_number: seat.row_number,
+      seat_number: seat.seat_number,
+      status: seat.status,
+    })),
+    serverTime: snapshot.serverTime,
+  };
+}
+
 function invalidateCache() {
   cachedSnapshot = null;
   cacheTime = 0;
@@ -106,7 +122,7 @@ function initWebSocketHub(server) {
   webSocketServer = new WebSocketServer({ server });
   webSocketServer.on('connection', async (socket) => {
     try {
-      socket.send(JSON.stringify({ type: 'SYSTEM_STATE', state: await fetchSystemSnapshot() }));
+      socket.send(JSON.stringify({ type: 'SYSTEM_STATE', state: await fetchPublicSnapshot() }));
     } catch (error) {
       console.error('[WebSocket Initial State Error]:', error);
       socket.close(1011, 'Unable to load current system state');
@@ -128,7 +144,7 @@ async function broadcastSystemState(alert = null) {
     broadcastTimer = setTimeout(async () => {
       broadcastTimer = null;
       try {
-        const message = JSON.stringify({ type: 'SYSTEM_STATE', state: await fetchSystemSnapshot() });
+        const message = JSON.stringify({ type: 'SYSTEM_STATE', state: await fetchPublicSnapshot() });
         for (const socket of webSocketServer.clients) {
           if (socket.readyState === WebSocket.OPEN) socket.send(message);
         }
@@ -141,7 +157,7 @@ async function broadcastSystemState(alert = null) {
 
   // Alerts broadcast immediately (no debounce)
   try {
-    const message = JSON.stringify({ type: 'SYSTEM_STATE', state: await fetchSystemSnapshot(alert) });
+    const message = JSON.stringify({ type: 'SYSTEM_STATE', state: await fetchPublicSnapshot() });
     for (const socket of webSocketServer.clients) {
       if (socket.readyState === WebSocket.OPEN) socket.send(message);
     }
@@ -150,4 +166,9 @@ async function broadcastSystemState(alert = null) {
   }
 }
 
-module.exports = { initWebSocketHub, fetchSystemSnapshot, broadcastSystemState };
+module.exports = {
+  initWebSocketHub,
+  fetchSystemSnapshot,
+  fetchPublicSnapshot,
+  broadcastSystemState,
+};

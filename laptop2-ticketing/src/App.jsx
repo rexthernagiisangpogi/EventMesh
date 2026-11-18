@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { API_BASE_URL, WS_URL, SERVER_IP, SERVER_PORT, IS_LOCALHOST } from './config/api';
+import { API_BASE_URL, WS_URL, IS_LOCALHOST, clearStaffToken, getStaffToken, staffFetch } from './config/api';
 import TicketingTerminal from './components/TicketingTerminal';
+import StaffLogin from './components/StaffLogin';
 
 export default function App() {
   const [events, setEvents] = useState([]);
@@ -8,6 +9,7 @@ export default function App() {
   const [tickets, setTickets] = useState([]);
   const [serverError, setServerError] = useState('');
   const [wsConnected, setWsConnected] = useState(false);
+  const [staffToken, setStaffToken] = useState(getStaffToken);
 
   const fetchEvents = useCallback(async () => {
     try {
@@ -23,7 +25,12 @@ export default function App() {
 
   const fetchState = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/state`);
+      const res = await staffFetch(`${API_BASE_URL}/state`);
+      if (res.status === 401) {
+        clearStaffToken();
+        setStaffToken('');
+        return;
+      }
       if (!res.ok) throw new Error(`Status ${res.status}`);
       const data = await res.json();
       setSeats(data.seats || []);
@@ -37,6 +44,7 @@ export default function App() {
   }, [fetchEvents, fetchState]);
 
   useEffect(() => {
+    if (!staffToken) return undefined;
     let active = true;
     let socket;
     let reconnectTimer;
@@ -51,8 +59,7 @@ export default function App() {
         try {
           const msg = JSON.parse(e.data);
           if (msg.type === 'SYSTEM_STATE' && msg.state) {
-            setSeats(msg.state.seats || []);
-            setTickets(msg.state.tickets || []);
+            fetchState();
             if (msg.state.events) fetchEvents();
           }
         } catch {}
@@ -72,7 +79,11 @@ export default function App() {
       clearTimeout(reconnectTimer);
       if (socket) { socket.onclose = null; socket.close(); }
     };
-  }, [fetchAll, fetchEvents, fetchState]);
+  }, [fetchAll, fetchEvents, fetchState, staffToken]);
+
+  if (!staffToken) {
+    return <StaffLogin onLogin={() => setStaffToken(getStaffToken())} />;
+  }
 
   return (
     <div style={pageStyle}>
@@ -91,7 +102,8 @@ export default function App() {
             {wsConnected ? '● Live' : '○ Connecting…'}
             {serverError ? ` · Error: ${serverError}` : ''}
           </div>
-          <div style={{ color: '#94a3b8', fontSize: 11 }}>Server: {SERVER_IP}:{SERVER_PORT}</div>
+          <div style={{ color: '#94a3b8', fontSize: 11 }}>Server: {new URL(API_BASE_URL).host}</div>
+          <button type="button" onClick={() => { clearStaffToken(); setStaffToken(''); }} style={signOutStyle}>Sign out</button>
         </div>
       </header>
       <main style={mainStyle}>
@@ -111,3 +123,4 @@ const pageStyle = { minHeight: '100vh', background: '#f1f5f9', fontFamily: 'syst
 const warnStyle = { padding: '10px 24px', background: '#fef3c7', color: '#92400e', borderBottom: '1px solid #fcd34d', fontSize: 13 };
 const headerStyle = { display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 24px', background: '#0f172a', color: '#fff' };
 const mainStyle = { maxWidth: 1250, margin: '24px auto', padding: '0 16px' };
+const signOutStyle = { marginTop: 6, padding: '4px 8px', border: '1px solid #475569', borderRadius: 5, background: 'transparent', color: '#cbd5e1', cursor: 'pointer', fontSize: 11 };

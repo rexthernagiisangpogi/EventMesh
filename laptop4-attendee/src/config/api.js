@@ -1,8 +1,16 @@
 export const SERVER_IP = process.env.REACT_APP_SERVER_IP || 'localhost';
 export const SERVER_PORT = process.env.REACT_APP_SERVER_PORT || '5001';
-export const API_BASE_URL = `http://${SERVER_IP}:${SERVER_PORT}/api/v1`;
-export const WS_URL = `ws://${SERVER_IP}:${SERVER_PORT}`;
-export const IS_LOCALHOST = SERVER_IP === 'localhost' || SERVER_IP === '127.0.0.1';
+const configuredApiUrl = process.env.REACT_APP_API_BASE_URL;
+export const API_BASE_URL = configuredApiUrl
+  ? new URL(configuredApiUrl, window.location.origin).toString().replace(/\/$/, '')
+  : `http://${SERVER_IP}:${SERVER_PORT}/api/v1`;
+const webSocketUrl = new URL(API_BASE_URL);
+webSocketUrl.protocol = webSocketUrl.protocol === 'https:' ? 'wss:' : 'ws:';
+webSocketUrl.pathname = '/';
+webSocketUrl.search = '';
+export const WS_URL = webSocketUrl.toString();
+export const IS_LOCALHOST = !configuredApiUrl &&
+  (SERVER_IP === 'localhost' || SERVER_IP === '127.0.0.1');
 
 let rpcRequestCounter = 100;
 

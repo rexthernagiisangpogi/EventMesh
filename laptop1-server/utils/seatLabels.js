@@ -10,9 +10,24 @@ function compareSeatOrder(left, right) {
 }
 
 function assignSeatLabels(seats) {
-  return [...seats]
-    .sort(compareSeatOrder)
-    .map((seat, index) => ({ ...seat, seat_label: `S${index + 1}` }));
+  const seatsByEvent = new Map();
+
+  for (const seat of seats) {
+    const eventId = seat.event_id || '';
+    if (!seatsByEvent.has(eventId)) seatsByEvent.set(eventId, []);
+    seatsByEvent.get(eventId).push(seat);
+  }
+
+  const labeledSeats = [];
+  for (const eventSeats of seatsByEvent.values()) {
+    eventSeats
+      .sort(compareSeatOrder)
+      .forEach((seat, index) => {
+        labeledSeats.push({ ...seat, seat_label: `S${index + 1}` });
+      });
+  }
+
+  return labeledSeats;
 }
 
 module.exports = { assignSeatLabels };

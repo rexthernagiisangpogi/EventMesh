@@ -98,6 +98,7 @@ export default function AttendeePortal({ events, seats, onRefresh }) {
   const [ticket, setTicket] = useState(null);
   const [status, setStatus] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [search, setSearch] = useState('');
   const qrRef = useRef(null);
   const ticketCardRef = useRef(null);
 
@@ -193,14 +194,22 @@ export default function AttendeePortal({ events, seats, onRefresh }) {
 
   // ── Event list ──────────────────────────────────────────────────────────────
   if (!selectedEvent) {
+    const normalizedSearch = search.trim().toLowerCase();
+    const visibleEvents = events.filter((ev) => (
+      !normalizedSearch ||
+      [ev.name, ev.venue, ev.date, ev.description]
+        .filter(Boolean)
+        .some((value) => value.toLowerCase().includes(normalizedSearch))
+    ));
+
     return (
       <div>
         <section className="event-intro" style={introStyle}>
           <div style={eyebrowStyle}><span style={eyebrowDotStyle} /> CHOOSE · BOOK · EXPERIENCE</div>
           <div className="event-intro-content" style={introContentStyle}>
             <div>
-              <h1 className="event-intro-heading" style={heroHeadingStyle}>Choose your next unforgettable event</h1>
-              <p style={introCopyStyle}>Good moments start with a great plan. Find an event, choose your seat, and make it a night to remember.</p>
+              <h1 className="event-intro-heading" style={heroHeadingStyle}>Find your next great moment</h1>
+              <p style={introCopyStyle}>Explore campus events, select an available seat, and confirm your booking in just a few steps.</p>
             </div>
             <div className="event-count" style={eventCountStyle}>
               <strong style={eventCountNumberStyle}>{events.length}</strong>
@@ -212,12 +221,22 @@ export default function AttendeePortal({ events, seats, onRefresh }) {
               <h2 style={availableHeadingStyle}>Available Events</h2>
               <p style={sectionCopyStyle}>Pick something you’ll be excited to experience.</p>
             </div>
-            <span style={sparkleStyle} aria-hidden="true">✦</span>
+            <label className="event-search" style={searchStyle}>
+              <span aria-hidden="true">⌕</span>
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search events"
+                aria-label="Search events"
+                style={searchInputStyle}
+              />
+            </label>
           </div>
         </section>
         {events.length === 0 && <p style={mutedStyle}>No events available yet. Check back soon.</p>}
+        {events.length > 0 && visibleEvents.length === 0 && <p style={mutedStyle}>No events match “{search.trim()}”.</p>}
         <div style={gridStyle}>
-          {events.map((ev) => {
+          {visibleEvents.map((ev) => {
             const evSeats = seats.filter((s) => s.event_id === ev.event_id);
             const avail = evSeats.filter((s) => s.status === 'AVAILABLE').length;
             const soldOut = avail === 0;
@@ -276,6 +295,7 @@ export default function AttendeePortal({ events, seats, onRefresh }) {
 
         {/* ── Digital Ticket Card (landscape) ── */}
         <div
+          className="digital-ticket"
           ref={ticketCardRef}
           data-event-name={selectedEvent.name}
           data-ticket-id={ticket.ticket_id}
@@ -324,7 +344,7 @@ export default function AttendeePortal({ events, seats, onRefresh }) {
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
+        <div className="booking-actions" style={{ display: 'flex', gap: 10, marginTop: 16 }}>
           <button type="button" onClick={downloadTicket} style={{ ...btnStyle, flex: 1 }}>
             ⬇ Download Ticket
           </button>
@@ -352,7 +372,7 @@ export default function AttendeePortal({ events, seats, onRefresh }) {
 
           {status && !status.ok && <p style={{ color: '#991b1b', fontSize: 13 }}>{status.message}</p>}
 
-          <div style={seatGridStyle}>
+          <div className="seat-grid" style={seatGridStyle}>
             {eventSeats.map((seat) => {
               const mine = seat.status === 'HELD' && seat.locked_by === NODE_ID;
               const isSelected = selectedSeat?.seat_id === seat.seat_id;
@@ -426,6 +446,8 @@ const sectionHeadingStyle = { display: 'flex', justifyContent: 'space-between', 
 const availableHeadingStyle = { margin: 0, color: '#20334a', fontSize: 21, letterSpacing: '-0.4px' };
 const sectionCopyStyle = { color: '#647a8b', fontSize: 13, margin: '4px 0 0' };
 const sparkleStyle = { color: '#e47a67', fontSize: 25 };
+const searchStyle = { display: 'flex', alignItems: 'center', gap: 8, width: 220, padding: '8px 12px', borderRadius: 12, border: '1px solid #c9dde8', background: '#f9fcfd', color: '#658194', boxSizing: 'border-box', transition: 'all 0.2s ease' };
+const searchInputStyle = { width: '100%', minWidth: 0, border: 0, outline: 0, background: 'transparent', color: '#20334a', fontSize: 13 };
 const gridStyle = { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(245px, 1fr))', gap: 20 };
 const eventSquareStyle = { display: 'flex', flexDirection: 'column', height: 400, background: 'rgba(250, 253, 255, 0.96)', border: '1px solid #c7dce8', borderRadius: 18, padding: 0, textAlign: 'left', boxShadow: '0 8px 22px #17395120', transition: 'transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease', overflow: 'hidden' };
 const posterContainerStyle = { height: '52%', flexShrink: 0, background: 'linear-gradient(135deg, #d8ebf3, #d8f1ed)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' };

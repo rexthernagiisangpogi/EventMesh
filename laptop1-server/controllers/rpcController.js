@@ -136,21 +136,26 @@ async function addMissingSeats(transaction, event_id, rows, cols) {
 }
 
 async function addMissingFlatSeats(transaction, event_id, total_seats, existingSeats) {
-  const suffix = `${event_id}_S`;
-  const highestNumber = existingSeats.reduce((highest, seat) => {
-    if (!seat.seat_id?.startsWith(suffix)) return highest;
-    const number = Number(seat.seat_id.slice(suffix.length));
-    return Number.isInteger(number) ? Math.max(highest, number) : highest;
-  }, 0);
   const seatsToAdd = Math.max(0, total_seats - existingSeats.length);
-  const newSeats = [];
-  let seatNumber = Math.max(existingSeats.length, highestNumber) + 1;
+  if (seatsToAdd === 0) return 0;
 
+  const suffix = `${event_id}_S`;
+  const existingNumbers = new Set(
+    existingSeats
+      .filter(s => s.seat_id?.startsWith(suffix))
+      .map(s => Number(s.seat_id.slice(suffix.length)))
+      .filter(Number.isInteger)
+  );
+
+  const newSeats = [];
+  let seatNumber = 1;
   while (newSeats.length < seatsToAdd) {
-    const seatId = `${event_id}_S${seatNumber}`;
-    const seatRef = db.collection('seats').doc(seatId);
-    if (!(await transaction.get(seatRef)).exists) {
-      newSeats.push({ seatId, seatRef, seatNumber });
+    if (!existingNumbers.has(seatNumber)) {
+      const seatId = `${event_id}_S${seatNumber}`;
+      const seatRef = db.collection('seats').doc(seatId);
+      if (!(await transaction.get(seatRef)).exists) {
+        newSeats.push({ seatId, seatRef, seatNumber });
+      }
     }
     seatNumber++;
   }
