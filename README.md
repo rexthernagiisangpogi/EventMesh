@@ -7,6 +7,13 @@ EventMesh runs across four devices on the same trusted Wi-Fi/LAN:
 - **Laptop 3:** Ticket validation and QR scanning
 - **Laptop 4:** Attendee booking and downloadable QR tickets
 
+Laptop 2 can mark an event as requiring a demo payment, set its PHP ticket
+price, and choose accepted eWallets. Laptop 4 requires the attendee to confirm
+the exact amount with one of those wallets before booking. This is presentation
+only: no payment provider or real money is involved. The eWallet account field
+is used only to validate the demo form and is not saved with the ticket; use a
+demo value and never enter a PIN or OTP.
+
 Each device needs Node.js LTS and npm. Laptop 1 keeps the server project. For
 the other devices, distribute only the matching app folder:
 
